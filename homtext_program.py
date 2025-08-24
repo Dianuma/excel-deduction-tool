@@ -21,44 +21,32 @@ class hometax_program():
     def change_deduction(self, data, master):
         # 공제 불공제 변경
         count_page=1
-
-        # iframe 전환 - 현재 필요 없음
-        # try:
-        #     iframe_xpath = '/html/body/div[1]/div[2]/iframe'
-        #     iframe_element = self.driver.find_element(By.XPATH, iframe_xpath)
-        #     self.driver.switch_to.frame(iframe_element)
-        # except:
-        #     self.driver.switch_to.default_content()
-        #     iframe_xpath = '/html/body/div[1]/div[2]/iframe'
-        #     iframe_element = self.driver.find_element(By.XPATH, iframe_xpath)
-        #     self.driver.switch_to.frame(iframe_element)
-
-        # 모든 체크박스 선택
+        total_deduction=0
         element = self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div/div[2]/div[4]/div[2]/div/div[1]/div/table/thead/tr/th[1]/input')
         self.driver.execute_script("arguments[0].click();", element)
-
         for i in range(2,len(data)):
-            # 테이블 번호 확인인
             table_order=str((i-2)%20+1)
-
-            # 테이블 내용 확인
             day=self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div/div[2]/div[4]/div[2]/div/div[1]/div/table/tbody/tr['+table_order+']/td[2]').text
             franchise_id=self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div/div[2]/div[4]/div[2]/div/div[1]/div/table/tbody/tr['+table_order+']/td[5]').text
             name=self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div/div[2]/div[4]/div[2]/div/div[1]/div/table/tbody/tr['+table_order+']/td[6]').text
             total=self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div/div[2]/div[4]/div[2]/div/div[1]/div/table/tbody/tr['+table_order+']/td[10]').text
             if day==data[i][0] and franchise_id==data[i][1] and name==data[i][2] and int(total.replace(',',''))==int(data[i][3]):
-                # 공제 불공제 변경
                 try:
                     if data[i][4].replace(' ','')=='공제':
                         Select(self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div/div[2]/div[4]/div[2]/div/div[1]/div/table/tbody/tr['+table_order+']/td[14]/div/div/select')).select_by_index(0)
                     else:
                         Select(self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div/div[2]/div[4]/div[2]/div/div[1]/div/table/tbody/tr['+table_order+']/td[14]/div/div/select')).select_by_index(1)
                     progress=((i-2)/(len(data)-2))*100
-                    self.display_progress(data[i][2]+" : "+data[i][4].replace(' ',''), progress, master)
+                    self.display_progress(str(i - 1)+" - "+data[i][2]+" : "+data[i][4].replace(' ',''), progress, master)
                 except:
-                    error_message=data[i][2]+"의 공제 불공제 변경에 실패했습니다."
+
+                    error_message=str(i - 1)+" - "+data[i][0]+" "+data[i][2]+"의 공제 불공제 변경에 실패했습니다 - "+data[i][4].replace(' ','')
                     progress=((i-2)/(len(data)-2))*100
-                    self.display_progress(error_message, progress, master)
+                    self.display_progress(error_message, progress, master, True)
+            else:
+                error_message=str(i - 1)+" - "+data[i][0]+" "+data[i][2]+"의 값이 홈택스와 다릅니다 - "+data[i][4].replace(' ','')
+                progress=((i-2)/(len(data)-2))*100
+                self.display_progress(error_message, progress, master, True)
                     
             #마지막 항목 체크  
             if i==len(data)-1:
@@ -67,6 +55,17 @@ class hometax_program():
                 sleep(0.5)
                 self.alert_check()
                 self.display_progress("변경이 완료되었습니다.", 100, master)
+
+                
+                for j in range(2, len(data)):
+                    if data[j][4].replace(' ','')=='공제':
+                        total_deduction += int(data[j][3])
+
+                self.display_progress("총 공제금액 : "+"{:,}".format(total_deduction), 100, master)
+
+                if ( master.total_deduction != 0):
+                    self.display_progress("공제금액 합계 : "+ "{:,}".format(total_deduction + master.total_deduction), 100, master)
+
             else:
                 #페이지 넘기기
                 if i%20==1:
@@ -91,10 +90,13 @@ class hometax_program():
                             break
                         except Exception as e:
                             pass
+        return total_deduction
                     
     # 진행상황 표시
-    def display_progress(self, progress_text, progress, master):
+    def display_progress(self, progress_text, progress, master, isFail=False):
         master.listbox2.insert(0, progress_text)
+        if isFail:
+            master.listbox2.itemconfig(0, {'fg': 'red'})
         master.progress_var.set(progress)
         master.progress_label.config(text=f"{progress:.1f}%")
         master.update_idletasks()
@@ -110,16 +112,14 @@ class hometax_program():
     def open_chrome(self):
         # 크롬 드라이버 오픈
         options = Options()
-        options.add_argument("--disable-logging")  # 기본 로그 끄기
-        options.add_argument("--log-level=3")  # 로그 레벨을 3으로 설정하여 불필요한 로그 끄기
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--disable-extensions")
-        options.add_argument("--remote-debugging-port=0")  # DevTools 디버깅 비활성화
-        options.add_experimental_option("excludeSwitches", ["enable-logging"])  # 로그 끄기
+        chrome_args = ["--disable-logging","--log-level=3","--no-sandbox","--disable-gpu","--disable-extensions","--remote-debugging-port=0"]
+        for arg in chrome_args:
+            options.add_argument(arg)
+        options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])  # 자동화 표시 제거
+        options.add_experimental_option("useAutomationExtension", False)  # 자동화 확장 비활성화
         options.add_experimental_option("detach", True)
         driver = webdriver.Chrome(options=options)
-        driver.get(url="https://www.hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml") # 홈텍스 URL
+        driver.get(url="https://www.hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml")
         return driver
 
     def data_load_from_excel(self, filename):
@@ -137,7 +137,7 @@ class hometax_program():
                 row_value.append(worksheet.cell(row, col).value)
             row_input=[]
             for i in range(len(row_value)):
-                if i==0 or i==3 or i==4 or i==8 or i==12: # 각각 승인일자, 가맹점 사업번호, 가맹점명, 합계 금액, 공제/불공제 여부부
+                if i==0 or i==3 or i==4 or i==8 or i==12:
                     row_input.append(row_value[i])
             all_values.append(row_input)
         return all_values
@@ -147,47 +147,52 @@ class hometax_program():
         id_wb = load_workbook(filename, data_only=True)
         id_ws = id_wb[id_wb.sheetnames[0]]
         all_values={}
-        first = True
         for row in id_ws.rows:
-            if first:
-                first = False
-                continue
             row_value = []
             for cell in row:
                 row_value.append(str(cell.value))
-            if row_value[0]!="None":
-                all_values[row_value[0]]=[row_value[1], row_value[2], row_value[3]]
+            if row_value[0]!="None" and row_value[4]!="None":
+                all_values[row_value[0]]=[row_value[1], row_value[2], row_value[3], row_value[4]]
         return all_values
 
     def login(self, selected_company):
         # 로그인
-        name=self.ID_password[selected_company][0]
         id=self.ID_password[selected_company][1]
         key=self.ID_password[selected_company][2]
+        res_no_front=self.ID_password[selected_company][3][0:6]
+        res_no_back_first=self.ID_password[selected_company][3][6]
         
-        # iframe 전환 - 현재 필요 없음
-        # try:
-        #     iframe_xpath = '/html/body/div[1]/div[2]/iframe'
-        #     iframe_element = self.driver.find_element(By.XPATH, iframe_xpath)
-        #     self.driver.switch_to.frame(iframe_element)
-        # except:
-        #     self.driver.switch_to.default_content()
-        #     iframe_xpath = '/html/body/div[1]/div[2]/iframe'
-        #     iframe_element = self.driver.find_element(By.XPATH, iframe_xpath)
-        #     self.driver.switch_to.frame(iframe_element)
-
         # ID 입력
         self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div[1]/div/div[1]/div[2]/div[2]/div[3]/div/div[1]/div[1]/ul/li[1]/div/input').send_keys(id)
         # Password 입력
         self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div[1]/div/div[1]/div[2]/div[2]/div[3]/div/div[1]/div[1]/ul/li[2]/div/input').send_keys(key)
-        # 로그인 버튼 클릭
         self.driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/div/div[1]/div/div[1]/div[2]/div[2]/div[3]/div/div[1]/div[2]/a').click()
+
+        # 주민번호 앞자리, 뒷자리 첫번째 숫자 입력
+        while True:
+            try:
+                self.driver.find_element(By.XPATH,'/html/body/div[6]/div[2]/div[1]/div/div/div[1]/div[2]/div/div[2]/div/ul/li[2]/div/input[1]').send_keys(res_no_front)
+                self.driver.find_element(By.XPATH,'/html/body/div[6]/div[2]/div[1]/div/div/div[1]/div[2]/div/div[2]/div/ul/li[2]/div/input[2]').send_keys(res_no_back_first)
+                self.driver.find_element(By.XPATH,'/html/body/div[6]/div[2]/div[1]/div/div/div[1]/div[2]/div/div[2]/div/div/input').click()
+                break
+            except Exception as e:
+                pass 
         self.driver.switch_to.default_content()
 
     def close_chrome(self):
         # 크롬 드라이버 종료
         self.driver.quit()
-  
+    
+    def change_site_url(self, url):
+        try:
+            if self.driver.current_url != url:
+                self.driver.get(url)
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Error", f"사이트 URL 변경 중 오류 발생: {e}")
+
+
+
 #화면 전환
 class display_interface(tk.Tk):
     def __init__(self):
@@ -197,12 +202,10 @@ class display_interface(tk.Tk):
         self.resizable(False, False)
         self._frame = None
         self.ID_password = None
+        self.selected_filename = None
         self.program_instance = hometax_program()
-
-        # 첫 화면 (로그인 창) 으로 전환
         self.switch_frame(hometax_program_GUI_first_window)
 
-    # 프레임 전환
     def switch_frame(self, frame_class):
         try:
             new_frame = frame_class(self)
@@ -222,8 +225,8 @@ class hometax_program_GUI_first_window(tk.Frame):
 
         '''1. 프레임 생성'''
         # 상단 프레임 (LabelFrame)
-        self.frm1 = tk.LabelFrame(self, text="로그인", pady=15, padx=15)   # pad 내부
-        self.frm1.grid(row=0, column=0, pady=10, padx=10, sticky="nswe") # pad 내부
+        self.frm1 = tk.LabelFrame(self, text="로그인", pady=15, padx=15)
+        self.frm1.grid(row=0, column=0, pady=10, padx=10, sticky="nswe")
 
         # 하단 프레임 (Frame)
         self.frm2 = tk.Frame(self, pady=10)
@@ -241,7 +244,7 @@ class hometax_program_GUI_first_window(tk.Frame):
 
         # 상단 버튼
         self.already_selected()
-        self.select_button = tk.Button(self.frm1, text="찾아보기", width=8, command=self.select_file) 
+        self.select_button = tk.Button(self.frm1, text="찾아보기", width=12, command=self.select_file) 
 
         # 하단 버튼
         self.refresh_button = tk.Button(self.frm2, text="초기화", width=8, command=self.refresh)
@@ -266,6 +269,7 @@ class hometax_program_GUI_first_window(tk.Frame):
         self.refresh_button.grid(row=0, column=3, sticky="wes")
         self.next_button.grid(row=0, column=6, sticky="ws")
         self.quit_button.grid(row=0, column=0, sticky="es")
+        '''실행'''
 
     # ID 파일이 이미 선택되어 있을 경우
     def already_selected(self):
@@ -313,7 +317,7 @@ class hometax_program_GUI_first_window(tk.Frame):
         except:
             messagebox.showinfo("Error", "오류가 발생했습니다.")
     # 로그인
-    def login(self,point):
+    def login(self, event):
         try:
             selected_company = self.listbox2.get(self.listbox2.curselection())
             self.program_instance.login(selected_company.split(" : ")[0])
@@ -342,6 +346,8 @@ class hometax_program_GUI_second_window(tk.Frame):
         tk.Frame.__init__(self, master)
         self.master = master
         self.program_instance = master.program_instance
+        self.filename = self.master.selected_filename
+        self.total_deduction = 0
 
         '''1. 프레임 생성'''
         # 상단 프레임 (LabelFrame)
@@ -367,8 +373,21 @@ class hometax_program_GUI_second_window(tk.Frame):
         self.progress_label = tk.Label(self.frm1, text="0%")
 
         # 상단 버튼
-        self.select_button = tk.Button(self.frm1, text="찾아보기", width=8, command=self.select_file) 
-        self.start_button = tk.Button(self.frm1, text="실행", width=8, command=self.change_deduction) 
+        self.select_button = tk.Button(self.frm1, text="찾아보기", width=12, command=self.select_file) 
+
+        # 실행, 사이트 버튼들 위한 서브 프레임
+        self.button_frame = tk.Frame(self.frm1)
+        self.button_frame.grid(row=3, column=3, rowspan=3, sticky="n", pady=5)
+
+        # 버튼 폭 통일 (width=15 정도 추천)
+        self.start_button = tk.Button(self.button_frame, text="변경 실행", width=12, command=self.change_deduction)
+        self.site_button1 = tk.Button(self.button_frame, text="변경 사이트", width=12, command=lambda: self.program_instance.change_site_url("https://hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml&tmIdx=46&tm2lIdx=4608020000&tm3lIdx=4608020100"))
+        self.site_button2 = tk.Button(self.button_frame, text="조회 사이트", width=12, command=lambda: self.program_instance.change_site_url("https://hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml&tmIdx=46&tm2lIdx=4608020000&tm3lIdx=4608020200"))
+
+        # 버튼 배치 (패킹)
+        self.start_button.pack(pady=2)
+        self.site_button1.pack(pady=2)
+        self.site_button2.pack(pady=2)
 
         # 하단 버튼
         self.refresh_button = tk.Button(self.frm2, text="초기화", width=8, command=self.refresh)
@@ -376,9 +395,14 @@ class hometax_program_GUI_second_window(tk.Frame):
         self.quit_button = tk.Button(self.frm2, text="종료", width=8, command=self.all_quit)
 
         # 스크롤바 - 기능 연결
-        self.scrollbar = tk.Scrollbar(self.frm1)
+        self.scrollbar = tk.Scrollbar(self.frm1, orient="vertical")
         self.scrollbar.config(command=self.listbox2.yview)
+
+        self.scrollbar_x = tk.Scrollbar(self.frm1, orient="horizontal")
+        self.scrollbar_x.config(command=self.listbox2.xview)
+
         self.listbox2.config(yscrollcommand=self.scrollbar.set)
+        self.listbox1.config(xscrollcommand=self.scrollbar_x.set)
 
         '''3. 요소 배치'''
         # 상단 프레임
@@ -386,11 +410,11 @@ class hometax_program_GUI_second_window(tk.Frame):
         self.lbl2.grid(row=2, column=1, columnspan=2, sticky="w")
         self.listbox1.grid(row=1, column=1, columnspan=2, sticky="wens")
         self.listbox2.grid(row=3, column=1, rowspan=2, sticky="wens")
-        self.scrollbar.grid(row=3, column=2, rowspan=2, sticky="wens")
-        self.progress_bar.grid(row=5, column=1, columnspan=2, sticky="wens")
-        self.progress_label.grid(row=6, column=1, columnspan=2, sticky="w")
+        self.scrollbar.grid(row=3, column=2, rowspan=2, sticky="ns")
+        self.scrollbar_x.grid(row=5, column=1, sticky="ew")
+        self.progress_bar.grid(row=6, column=1, columnspan=2, sticky="wens")
+        self.progress_label.grid(row=7, column=1, columnspan=2, sticky="w")
         self.select_button.grid(row=1, column=3)
-        self.start_button.grid(row=3, column=3,sticky="wn")
 
         # 하단 프레임
         self.refresh_button.grid(row=0, column=3, sticky="wes")
@@ -401,10 +425,15 @@ class hometax_program_GUI_second_window(tk.Frame):
     #파일 선택
     def select_file(self):
         try:
-            filename = askopenfilename(initialdir="./", filetypes=(("Excel files", ".xlsx .xls"), ('All files', '*.*')))
-            if filename:
+            if self.filename is None:
+                self.filename = askopenfilename(initialdir="./", filetypes=(("Excel files", ".xlsx .xls"), ('All files', '*.*')))
+            else:
+                # 파일이 이미 선택되어 있을 경우, 그 디렉토리에서 파일 선택
+                self.filename = askopenfilename(initialdir=os.path.dirname(self.filename), filetypes=(("Excel files", ".xlsx .xls"), ('All files', '*.*')))
+            if self.filename:
                 self.listbox1.delete(0, "end")
-                self.listbox1.insert(0, filename)
+                self.listbox1.insert(0, self.filename)
+                self.master.selected_filename = self.filename
         except:
             messagebox.showinfo("Error", "오류가 발생했습니다.")
             
@@ -412,7 +441,7 @@ class hometax_program_GUI_second_window(tk.Frame):
     def change_deduction(self):
         try:    
             data_from_excel=self.program_instance.data_load_from_excel(self.listbox1.get(0))
-            self.program_instance.change_deduction(data_from_excel, self)
+            self.total_deduction += self.program_instance.change_deduction(data_from_excel, self)
         except:
             messagebox.showinfo("Error", "오류가 발생했습니다.")
 
