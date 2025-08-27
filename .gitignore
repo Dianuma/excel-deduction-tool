@@ -1,0 +1,7 @@
+/build/
+/dist/
+*.log
+.env
+__pycache__/
+엑셀 넣는 곳/
+test.py
