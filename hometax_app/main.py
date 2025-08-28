@@ -1,9 +1,9 @@
 import os
 import warnings
-from gui.interface import display_interface
+from gui.interface import DisplayInterface
 
 def main():
-    app = display_interface()
+    app = DisplayInterface()
     app.mainloop()
 
 if __name__ == "__main__":

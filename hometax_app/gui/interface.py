@@ -1,10 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-from tkinter.filedialog import askopenfilename
+from tkinter import messagebox
 from gui.login_window import LoginWindow
-from handler.hometax_web_handler import hometax_web_handler as wh
+from handler.web_handler import web_handler
 from gui.deduction_window import DeductionWindow
-class display_interface(tk.Tk):
+class DisplayInterface(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
         self.title('공제 불공제 변경 프로그램')
@@ -32,7 +31,7 @@ class display_interface(tk.Tk):
         try:
             reply = messagebox.askyesno("종료", "정말로 종료 하시겠습니까?")
             if reply:
-                wh.close_chrome()
+                web_handler.browser.close_chrome()
                 self.destroy()
         except Exception as e:
             messagebox.showerror("Error", f"종료 중 오류 발생: {e}")

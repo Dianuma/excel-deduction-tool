@@ -21,7 +21,7 @@ class ExcelHandler:
             print(f"Excel 로드 실패: {e}")
             return None
     def load_ids(self, filename):  # ID 데이터 로드
-        td.id_file_path = filename
+        td.set_id_file(filename)
         df = self.open_excel(filename)
         if df is None:
             return []
@@ -35,7 +35,7 @@ class ExcelHandler:
 
         self.id_data = all_values
     def load_data(self, filename):  # 데이터 로드
-        td.deduction_file_path = filename
+        td.set_deduction_file(filename)
         df = self.open_excel(filename)
         if df is None:
             return []
@@ -65,4 +65,5 @@ class ExcelHandler:
         for data in self.deduction_data:
             if data[4] == "공제":
                 self.total_deduction += int(data[3])
+
 excel_handler = ExcelHandler()

@@ -3,8 +3,9 @@ from tkinter import ttk, messagebox
 from tkinter.filedialog import askopenfilename
 from handler.excel_handler import excel_handler
 from temp_data import temp_data as td
-from handler.hometax_web_handler import hometax_web_handler as wh
+from handler.web_handler import web_handler
 from config import *
+import threading
 
 class DeductionWindow(tk.Frame):
     def __init__(self, master):
@@ -38,9 +39,12 @@ class DeductionWindow(tk.Frame):
         self.button_frame.grid(row=3, column=3, rowspan=3, sticky="n", pady=5)
 
         # 버튼 폭 통일 (width=15 정도 추천)
-        self.start_button = tk.Button(self.button_frame, text="변경 실행", width=12, command=lambda: wh.deduction_change_process(self.update_progress))
-        self.site_button1 = tk.Button(self.button_frame, text="변경 사이트", width=12, command=lambda: wh.change_site_url(HOMETAX_URL_DEDUCTION_CHANGE))
-        self.site_button2 = tk.Button(self.button_frame, text="조회 사이트", width=12, command=lambda: wh.change_site_url(HOMETAX_URL_DEDUCTION_CHECK))
+        self.start_button = tk.Button(
+            self.button_frame, text="변경 실행", width=12, 
+            command=lambda: threading.Thread(target=web_handler.start_deduction_process, args=(self.update_progress,)).start()
+            )
+        self.site_button1 = tk.Button(self.button_frame, text="변경 사이트", width=12, command=lambda: web_handler.change_site_url(HOMETAX_URL_DEDUCTION_CHANGE))
+        self.site_button2 = tk.Button(self.button_frame, text="조회 사이트", width=12, command=lambda: web_handler.change_site_url(HOMETAX_URL_DEDUCTION_CHECK))
 
         # 버튼 배치 (패킹)
         self.start_button.pack(pady=2)
@@ -55,7 +59,7 @@ class DeductionWindow(tk.Frame):
         self.scrollbar_x.config(command=self.listbox2.xview)
 
         self.listbox2.config(yscrollcommand=self.scrollbar.set)
-        self.listbox1.config(xscrollcommand=self.scrollbar_x.set)
+        self.listbox2.config(xscrollcommand=self.scrollbar_x.set)
 
         '''요소 배치'''
         # 상단 프레임
@@ -89,8 +93,8 @@ class DeductionWindow(tk.Frame):
     def set_display(self):
         self.listbox1.delete(0, "end")
         self.listbox2.delete(0, "end")
-        if td.deduction_file_path is not None:
-            self.listbox1.insert(0, td.deduction_file_path)
+        if td.deduction_file is not None:
+            self.listbox1.insert(0, td.deduction_file)
         for log in td.deduction_log_data:
             self.listbox2.insert(0, log[0])
             if log[1]:
@@ -113,7 +117,7 @@ class DeductionWindow(tk.Frame):
                 self.listbox1.delete(0, "end")
                 self.listbox2.delete(0, "end")
                 excel_handler.reset_deduction_data()
-                td.reset()
+                td.reset_deduction_file()
                 messagebox.showinfo("Success", "초기화 되었습니다.")
         except Exception as e:
             messagebox.showerror("Error", f"초기화 중 오류 발생: {e}")

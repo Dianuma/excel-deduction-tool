@@ -1,15 +1,17 @@
 import tkinter as tk
 from tkinter import messagebox
-from tkinter.filedialog import askopenfilename
 from handler.excel_handler import excel_handler
 from temp_data import temp_data as td
-from handler.hometax_web_handler import hometax_web_handler as wh
+from handler.web_handler import web_handler
+from gui.ui_helper import select_file
 from config import *
 
 class LoginWindow(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
         self.master = master
+        self.excel_handler = excel_handler
+        self.web_handler = web_handler
 
         '''상단 프레임 (로그인)'''
         # 프레임 생성 및 배치
@@ -44,7 +46,7 @@ class LoginWindow(tk.Frame):
         self.frm2.grid(row=1, column=0, pady=10)
         
         # 요소 생성
-        self.quit_button = tk.Button(self.frm2, text="종료", width=8, command=self.master.all_quit)
+        self.quit_button = tk.Button(self.frm2, text="종료", width=8, command=self.all_quit)
         self.refresh_button = tk.Button(self.frm2, text="초기화", width=8, command=self.reset)
         self.next_button = tk.Button(self.frm2, text="다음", width=8, command=self.master.deduction_frame)
 
@@ -58,41 +60,38 @@ class LoginWindow(tk.Frame):
     def set_display(self):
             self.listbox1.delete(0, "end")
             self.listbox2.delete(0, "end")
-            if td.id_file_path is not None:
-                self.listbox1.insert(0, td.id_file_path)
+            if td.id_file is not None:
+                self.listbox1.insert(0, td.id_file)
                 self.display_company_list()
-    def search_file(self):  # 파일 검색
-        try:
-            if td.id_file_path:
-                filename = askopenfilename(initialdir=td.get_id_file_path(), filetypes=(("Excel files", ".xlsx .xls"), ('All files', '*.*')))
-            else:
-                filename = askopenfilename(initialdir="./", filetypes=(("Excel files", ".xlsx .xls"), ('All files', '*.*')))
-            excel_handler.load_ids(filename)
-            self.set_display()
-        except Exception as e:
-            messagebox.showerror("Error", f"파일 선택 중 오류 발생: {e}")
+    def search_file(self, event = None):  # 파일 검색
+        self.excel_handler.load_ids(select_file(td.get_id_file_path()))
+        self.set_display()
     def display_company_list(self):  # 회사 목록 표시
         try:
-            for id in excel_handler.id_data:
+            for id in self.excel_handler.id_data:
                 self.listbox2.insert("end", self.get_display_text(id))
         except Exception as e:
             messagebox.showerror("Error", f"회사 목록 표시 중 오류 발생: {e}")
     def get_display_text(self, id):  # 회사 목록 표시 텍스트 표준화
-        return f"{id} : {excel_handler.id_data[id][0]}"
-    def login(self, event):  # 로그인
+        return f"{id} : {self.excel_handler.id_data[id][0]}"
+    def login(self, event = None):  # 로그인
         try:
             selected_company = self.listbox2.get(self.listbox2.curselection())
-            wh.login_hometax(selected_company.split(" : ")[0])
+            self.web_handler.hometax_login(selected_company.split(" : ")[0])
         except Exception as e:
             messagebox.showerror("Error", f"로그인 중 오류 발생: {e}")
-    def reset(self):  # 초기화
+    def reset(self, event = None):  # 초기화
         try:
             reply = messagebox.askyesno("초기화", "정말로 초기화 하시겠습니까?")
             if reply:
                 self.listbox1.delete(0, "end")
                 self.listbox2.delete(0, "end")
-                excel_handler.reset_id_data()
-                excel_handler.reset_deduction_data()
+                self.excel_handler.reset_id_data()
+                self.excel_handler.reset_deduction_data()
+                td.reset_id_file()
+                td.reset_deduction_file()
                 messagebox.showinfo("Success", "초기화 되었습니다.")
         except:
             messagebox.showinfo("Error", "오류가 발생했습니다.")
+    def all_quit(self, event = None):
+        self.master.all_quit()
